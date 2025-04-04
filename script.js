@@ -8,7 +8,6 @@ function getLocation() {
               const coords = position.coords;
               const timestamp = position.timestamp;
 
-              // 全情報を表示
               infoDiv.innerHTML = `
                   <p><strong>緯度 (Latitude):</strong> ${coords.latitude}</p>
                   <p><strong>経度 (Longitude):</strong> ${coords.longitude}</p>
@@ -29,6 +28,4 @@ function getLocation() {
   }
 }
 
-// ページ読み込み時に自動で取得（任意）
 console.log("Highway app started!");
-// getLocation(); // 自動実行したいなら外す

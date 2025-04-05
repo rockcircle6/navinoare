@@ -98,6 +98,7 @@ async function checkHighway(lat, lon, heading = null) {
         console.log("判定中の高速道路:", highwayName);
         for (let i = 0; i < geometry.length - 1; i++) {
             const dist = pointToLineDistance(lat, lon, geometry[i], geometry[i + 1]);
+            console.log(`セグメント ${i}: 距離 ${dist * 111000} m`); // 距離をログで確認
             if (dist < minDistance) {
                 minDistance = dist;
                 closestHighway = highwayName;
@@ -106,7 +107,7 @@ async function checkHighway(lat, lon, heading = null) {
         }
     }
 
-    if (minDistance < 0.0003 && closestSegment) {
+    if (minDistance < 0.0005 && closestSegment) { // 閾値を50mに緩和
         let direction = "不明";
         if (heading !== null) {
             // セグメントの向きを計算
@@ -130,7 +131,7 @@ async function checkHighway(lat, lon, heading = null) {
         console.log("判定結果:", { highway: closestHighway, direction, distance: minDistance });
         return { highway: closestHighway, direction, distance: minDistance };
     }
-    console.log("判定結果: 高速道路外");
+    console.log("判定結果: 高速道路外, 最小距離:", minDistance * 111000, "m");
     return { highway: "高速道路外", direction: "なし", distance: minDistance };
 }
 

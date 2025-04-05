@@ -1,11 +1,14 @@
 // Overpass APIで高速道路データを取得
 async function fetchHighwayData(lat, lon) {
-  const query = `[out:json];way["highway"="motorway"](around:500,${lat},${lon});out body;`;
+  console.log("fetchHighwayData開始:", { lat, lon });
+  const query = `[out:json];way["highway"="motorway"](around:500,${lat},${lon});(._;>;);out geom;`;
   const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
   try {
+      console.log("Overpass APIリクエスト送信:", url);
       const response = await fetch(url);
+      console.log("Overpass APIレスポンス受信:", response);
       const data = await response.json();
-      console.log("Overpass APIレスポンス:", data); // デバッグ用
+      console.log("Overpass APIデータ:", data);
       return data.elements || [];
   } catch (error) {
       console.error("Overpass APIエラー:", error);
@@ -36,10 +39,25 @@ function pointToLineDistance(lat, lon, point1, point2) {
   return getDistance(x, y, projectionX, projectionY);
 }
 
+// セグメントの向き（角度）を計算
+function getSegmentHeading(start, end) {
+  const deltaLat = end.lat - start.lat;
+  const deltaLon = end.lon - start.lon;
+  const angle = Math.atan2(deltaLon, deltaLat) * (180 / Math.PI);
+  return (angle + 360) % 360; // 0〜360°に正規化
+}
+
 // 高速道路判定（JSONデータから名前を取得）
-async function checkHighway(lat, lon) {
-  const highways = await fetchHighwayData(lat, lon);
-  if (highways.length === 0) {
+async function checkHighway(lat, lon, heading = null) {
+  console.log("checkHighway開始:", { lat, lon, heading });
+  const elements = await fetchHighwayData(lat, lon);
+  console.log("elements取得:", elements);
+
+  // way（高速道路）だけをフィルタ
+  const highways = elements.filter(element => element.type === "way");
+  console.log("highwaysフィルタ:", highways);
+  if (!highways || highways.length === 0) {
+      console.log("高速道路なし");
       return { highway: "高速道路外", direction: "なし", distance: null };
   }
 
@@ -48,13 +66,11 @@ async function checkHighway(lat, lon) {
   let closestSegment = null;
 
   for (const highway of highways) {
-      // geometryがない、または短すぎる場合はスキップ
       if (!highway.geometry || highway.geometry.length < 2) {
           console.warn("geometryがないデータ:", highway);
           continue;
       }
 
-      // tagsがない場合はデフォルト名
       if (!highway.tags) {
           console.warn("tagsがないデータ:", highway);
           highway.tags = { name: "不明な高速道路" };
@@ -62,6 +78,7 @@ async function checkHighway(lat, lon) {
 
       const geometry = highway.geometry;
       const highwayName = highway.tags.name || "不明な高速道路";
+      console.log("判定中の高速道路:", highwayName);
       for (let i = 0; i < geometry.length - 1; i++) {
           const dist = pointToLineDistance(lat, lon, geometry[i], geometry[i + 1]);
           if (dist < minDistance) {
@@ -72,15 +89,31 @@ async function checkHighway(lat, lon) {
       }
   }
 
-  if (minDistance < 0.0005) {
+  if (minDistance < 0.0003 && closestSegment) {
       let direction = "不明";
-      if (closestHighway.includes("東名")) {
-          direction = lat > closestSegment.start.lat ? "上り" : "下り";
-      } else if (closestHighway.includes("首都")) {
-          direction = lon > closestSegment.start.lon ? "外回り" : "内回り";
+      if (heading !== null) {
+          // セグメントの向きを計算
+          const segmentHeading = getSegmentHeading(closestSegment.start, closestSegment.end);
+          console.log("セグメントの向き:", segmentHeading);
+
+          // テスラの進行方向とセグメントの向きを比較
+          const headingDiff = Math.abs((heading - segmentHeading + 540) % 360 - 180);
+          console.log("進行方向との差:", headingDiff);
+
+          // 環状道路かどうか（簡易的に名前で判定）
+          const isCircular = closestHighway.includes("首都") || closestHighway.includes("環状") || closestHighway.includes("高速");
+
+          // 差が90°以内なら同じ方向、180°±90°なら逆方向
+          if (headingDiff < 90) {
+              direction = isCircular ? "内回り" : "上り";
+          } else if (headingDiff > 90) {
+              direction = isCircular ? "外回り" : "下り";
+          }
       }
+      console.log("判定結果:", { highway: closestHighway, direction, distance: minDistance });
       return { highway: closestHighway, direction, distance: minDistance };
   }
+  console.log("判定結果: 高速道路外");
   return { highway: "高速道路外", direction: "なし", distance: minDistance };
 }
 
@@ -92,10 +125,11 @@ function getLocation() {
   if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
           async (position) => {
+              console.log("位置情報取得:", position);
               const coords = position.coords;
               const timestamp = position.timestamp;
 
-              const highwayInfo = await checkHighway(coords.latitude, coords.longitude);
+              const highwayInfo = await checkHighway(coords.latitude, coords.longitude, coords.heading);
 
               infoDiv.innerHTML = `
                   <h2>${highwayInfo.highway}</h2>
@@ -113,6 +147,7 @@ function getLocation() {
               `;
           },
           (error) => {
+              console.error("位置情報エラー:", error);
               infoDiv.innerHTML = `<p>エラー: ${error.message}</p>`;
           }
       );

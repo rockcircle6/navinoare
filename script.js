@@ -1,7 +1,7 @@
 // Overpass APIで高速道路データを取得
 async function fetchHighwayData(lat, lon) {
     console.log("fetchHighwayData開始:", { lat, lon });
-    const query = `[out:json];way["highway"="motorway"](around:500,${lat},${lon});out body;node(w);out body;`;
+    const query = `[out:json];way["highway"="motorway"](around:500,${lat},${lon});out body;node(w);out center;`;
     const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
     try {
         console.log("Overpass APIリクエスト送信:", url);

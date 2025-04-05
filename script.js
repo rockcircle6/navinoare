@@ -67,6 +67,11 @@ function getSegmentHeading(start, end) {
 
 // キロポスト（KP）を計算
 function calculateKilopost(lat, lon, geometry) {
+    if (!geometry || geometry.length < 2) {
+        console.warn("geometryが不正:", geometry);
+        return null;
+    }
+
     let totalDistance = 0;
     let closestSegmentIndex = 0;
     let minDistance = Infinity;
@@ -90,7 +95,7 @@ function calculateKilopost(lat, lon, geometry) {
     const segmentEnd = geometry[closestSegmentIndex + 1];
     const segmentLength = getDistance(segmentStart.lat, segmentStart.lon, segmentEnd.lat, segmentEnd.lon);
     const distToStart = getDistance(lat, lon, segmentStart.lat, segmentStart.lon);
-    const ratio = distToStart / segmentLength;
+    const ratio = segmentLength > 0 ? distToStart / segmentLength : 0; // ゼロ除算を防ぐ
     totalDistance += segmentLength * ratio;
 
     // キロポスト（KP）を計算（1度=約111kmとして簡易計算）
@@ -117,7 +122,7 @@ async function checkHighway(lat, lon, heading = null) {
     console.log("highwaysフィルタ:", highways);
     if (!highways || highways.length === 0) {
         console.log("高速道路なし");
-        return { highway: "高速道路外", direction: "なし", distance: null, kilopost: null };
+        return { highway: "高速道路外", direction: "なし", distance: null, kilopost: null, upcomingFacilities: [] };
     }
 
     let closestHighway = null;
@@ -162,18 +167,13 @@ async function checkHighway(lat, lon, heading = null) {
     if (minDistance < 0.0005 && closestSegment) {
         let direction = "不明";
         if (heading !== null) {
-            // セグメントの向きを計算
             const segmentHeading = getSegmentHeading(closestSegment.start, closestSegment.end);
             console.log("セグメントの向き:", segmentHeading);
 
-            // テスラの進行方向とセグメントの向きを比較
             const headingDiff = Math.abs((heading - segmentHeading + 540) % 360 - 180);
             console.log("進行方向との差:", headingDiff);
 
-            // 環状道路かどうか（簡易的に名前で判定）
             const isCircular = closestHighway.includes("首都") || closestHighway.includes("環状") || closestHighway.includes("高速");
-
-            // 差が90°以内なら同じ方向、180°±90°なら逆方向
             if (headingDiff < 90) {
                 direction = isCircular ? "内回り" : "上り";
             } else if (headingDiff > 90) {
@@ -183,7 +183,7 @@ async function checkHighway(lat, lon, heading = null) {
 
         // キロポスト（KP）を計算
         const kilopost = calculateKilopost(lat, lon, closestGeometry);
-        console.log("キロポスト:", kilopost);
+        console.log("キロポスト計算結果:", kilopost);
 
         // 前方のSAやJCTを取得
         const facilities = await fetchFacilities(lat, lon, closestHighway);
@@ -222,10 +222,10 @@ function getLocation() {
                 infoDiv.innerHTML = `
                     <h2>${highwayInfo.highway}</h2>
                     <p><strong>方向:</strong> ${highwayInfo.direction}</p>
-                    <p><strong>キロポスト (KP):</strong> ${highwayInfo.kilopost ? highwayInfo.kilopost.toFixed(2) : "不明"} km</p>
+                    <p><strong>キロポスト (KP):</strong> ${highwayInfo.kilopost !== null ? highwayInfo.kilopost.toFixed(2) : "不明"} km</p>
                     <p><strong>前方の施設:</strong></p>
                     <ul>
-                        ${highwayInfo.upcomingFacilities.map(f => `<li>${f.type === "services" ? "SA" : "JCT"}: ${f.name} (${f.distance.toFixed(2)} km)</li>`).join('') || '<li>なし</li>'}
+                        ${highwayInfo.upcomingFacilities && highwayInfo.upcomingFacilities.length > 0 ? highwayInfo.upcomingFacilities.map(f => `<li>${f.type === "services" ? "SA" : "JCT"}: ${f.name} (${f.distance.toFixed(2)} km)</li>`).join('') : '<li>なし</li>'}
                     </ul>
                     <p><strong>道路からの距離:</strong> ${highwayInfo.distance ? (highwayInfo.distance * 111000).toFixed(2) : "不明"} m</p>
                     <hr>

@@ -5,7 +5,8 @@ async function fetchHighwayData(lat, lon) {
   try {
       const response = await fetch(url);
       const data = await response.json();
-      return data.elements;
+      console.log("Overpass APIレスポンス:", data); // デバッグ用
+      return data.elements || [];
   } catch (error) {
       console.error("Overpass APIエラー:", error);
       return [];
@@ -47,8 +48,14 @@ async function checkHighway(lat, lon) {
   let closestSegment = null;
 
   for (const highway of highways) {
+      // geometryがない場合はスキップ
+      if (!highway.geometry || highway.geometry.length < 2) {
+          console.warn("geometryがないデータ:", highway);
+          continue;
+      }
+
       const geometry = highway.geometry;
-      const highwayName = highway.tags.name || "不明な高速道路"; // JSONから名前取得
+      const highwayName = highway.tags.name || "不明な高速道路";
       for (let i = 0; i < geometry.length - 1; i++) {
           const dist = pointToLineDistance(lat, lon, geometry[i], geometry[i + 1]);
           if (dist < minDistance) {
@@ -59,7 +66,6 @@ async function checkHighway(lat, lon) {
       }
   }
 
-  // 距離が0.0005（約50m）以内ならその高速道路とみなす
   if (minDistance < 0.0005) {
       let direction = "不明";
       if (closestHighway.includes("東名")) {
@@ -83,7 +89,6 @@ function getLocation() {
               const coords = position.coords;
               const timestamp = position.timestamp;
 
-              // 高速道路判定
               const highwayInfo = await checkHighway(coords.latitude, coords.longitude);
 
               infoDiv.innerHTML = `

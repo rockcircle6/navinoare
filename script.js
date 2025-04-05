@@ -4,16 +4,17 @@ function getLocation() {
 
   if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-          (position) => {
+          async (position) => {
               const coords = position.coords;
               const timestamp = position.timestamp;
 
               // 高速道路判定
-              const highwayInfo = checkHighway(coords.latitude, coords.longitude);
+              const highwayInfo = await checkHighway(coords.latitude, coords.longitude);
 
               infoDiv.innerHTML = `
                   <p><strong>高速道路:</strong> ${highwayInfo.highway}</p>
                   <p><strong>方向:</strong> ${highwayInfo.direction}</p>
+                  <p><strong>道路からの距離:</strong> ${highwayInfo.distance ? (highwayInfo.distance * 111000).toFixed(2) : "不明"} m</p>
                   <hr>
                   <p><strong>緯度 (Latitude):</strong> ${coords.latitude}</p>
                   <p><strong>経度 (Longitude):</strong> ${coords.longitude}</p>
@@ -37,7 +38,6 @@ function getLocation() {
 console.log("Highway app started!");
 
 
-// 2点間の距離（簡易的に直線距離、実際は球面距離を使うべきだけど）
 // 2点間の距離
 function getDistance(lat1, lon1, lat2, lon2) {
   return Math.sqrt((lat1 - lat2) ** 2 + (lon1 - lon2) ** 2);
@@ -61,77 +61,96 @@ function pointToLineDistance(lat, lon, point1, point2) {
   return getDistance(x, y, projectionX, projectionY);
 }
 
-// 高速道路判定
-function checkHighway(lat, lon) {
+// 高速道路判定（OSMデータ使用）
+async function checkHighway(lat, lon) {
+  const highways = await fetchHighwayData(lat, lon);
+  if (highways.length === 0) {
+      return { highway: "高速道路外", direction: "なし", distance: null };
+  }
+
   let closestHighway = null;
   let minDistance = Infinity;
   let closestSegment = null;
 
-  for (const highway in highwayData) {
-      const points = highwayData[highway].points;
-      for (let i = 0; i < points.length - 1; i++) {
-          const dist = pointToLineDistance(lat, lon, points[i], points[i + 1]);
+  for (const highway of highways) {
+      const geometry = highway.geometry;
+      const highwayName = highway.tags.name || "不明な高速道路";
+      for (let i = 0; i < geometry.length - 1; i++) {
+          const dist = pointToLineDistance(lat, lon, geometry[i], geometry[i + 1]);
           if (dist < minDistance) {
               minDistance = dist;
-              closestHighway = highway;
-              closestSegment = { start: points[i], end: points[i + 1] };
+              closestHighway = highwayName;
+              closestSegment = { start: geometry[i], end: geometry[i + 1] };
           }
       }
   }
 
   // 距離が0.0005（約50m）以内ならその高速道路とみなす
   if (minDistance < 0.0005) {
-      const highway = highwayData[closestHighway];
       let direction = "不明";
-      if (closestHighway === "東名高速道路") {
+      // 簡易的な上下線判定（緯度・経度の変化で）
+      if (closestHighway.includes("東名")) {
           direction = lat > closestSegment.start.lat ? "上り" : "下り";
-      } else if (closestHighway === "首都高速") {
+      } else if (closestHighway.includes("首都")) {
           direction = lon > closestSegment.start.lon ? "外回り" : "内回り";
       }
-      return { highway: closestHighway, direction: highway.direction[direction], distance: minDistance };
+      return { highway: closestHighway, direction, distance: minDistance };
   }
   return { highway: "高速道路外", direction: "なし", distance: minDistance };
 }
 
-const highwayData = {
-  "東名高速道路": {
-      points: [
-          { lat: 35.171, lon: 136.881 }, // 名古屋IC
-          { lat: 35.188, lon: 136.913 }, // 名古屋南JCT
-          { lat: 35.243, lon: 137.123 }, // 豊田JCT
-          { lat: 35.277, lon: 137.312 }, // 岡崎IC
-          { lat: 35.312, lon: 137.543 }, // 音羽蒲郡IC
-          { lat: 35.366, lon: 137.873 }, // 静岡IC
-          { lat: 35.401, lon: 138.123 }, // 清水IC
-          { lat: 35.445, lon: 138.345 }, // 沼津IC
-          { lat: 35.482, lon: 138.567 }, // 富士IC
-          { lat: 35.512, lon: 138.789 }, // 御殿場IC
-          { lat: 35.567, lon: 138.945 }, // 裾野IC
-          { lat: 35.623, lon: 139.123 }, // 厚木IC
-          { lat: 35.645, lon: 139.345 }, // 海老名JCT
-          { lat: 35.681, lon: 139.691 }  // 東京IC
-      ],
-      direction: {
-          "上り": "東京方面",
-          "下り": "名古屋方面"
-      }
-  },
-  "首都高速": {
-      points: [
-          { lat: 35.689, lon: 139.692 }, // 霞が関
-          { lat: 35.711, lon: 139.723 }, // 竹橋JCT
-          { lat: 35.735, lon: 139.756 }, // 江戸橋JCT
-          { lat: 35.765, lon: 139.880 }, // 葛飾区（小菅JCT）
-          { lat: 35.723, lon: 139.912 }, // 四つ木IC
-          { lat: 35.671, lon: 139.845 }, // 堀切JCT
-          { lat: 35.623, lon: 139.776 }, // 品川
-          { lat: 35.601, lon: 139.701 }, // 大井JCT
-          { lat: 35.645, lon: 139.623 }, // 荻窪
-          { lat: 35.671, lon: 139.601 }  // 高井戸
-      ],
-      direction: {
-          "内回り": "時計回り",
-          "外回り": "反時計回り"
-      }
+// const highwayData = {
+//   "東名高速道路": {
+//       points: [
+//           { lat: 35.171, lon: 136.881 }, // 名古屋IC
+//           { lat: 35.188, lon: 136.913 }, // 名古屋南JCT
+//           { lat: 35.243, lon: 137.123 }, // 豊田JCT
+//           { lat: 35.277, lon: 137.312 }, // 岡崎IC
+//           { lat: 35.312, lon: 137.543 }, // 音羽蒲郡IC
+//           { lat: 35.366, lon: 137.873 }, // 静岡IC
+//           { lat: 35.401, lon: 138.123 }, // 清水IC
+//           { lat: 35.445, lon: 138.345 }, // 沼津IC
+//           { lat: 35.482, lon: 138.567 }, // 富士IC
+//           { lat: 35.512, lon: 138.789 }, // 御殿場IC
+//           { lat: 35.567, lon: 138.945 }, // 裾野IC
+//           { lat: 35.623, lon: 139.123 }, // 厚木IC
+//           { lat: 35.645, lon: 139.345 }, // 海老名JCT
+//           { lat: 35.681, lon: 139.691 }  // 東京IC
+//       ],
+//       direction: {
+//           "上り": "東京方面",
+//           "下り": "名古屋方面"
+//       }
+//   },
+//   "首都高速": {
+//       points: [
+//           { lat: 35.689, lon: 139.692 }, // 霞が関
+//           { lat: 35.711, lon: 139.723 }, // 竹橋JCT
+//           { lat: 35.735, lon: 139.756 }, // 江戸橋JCT
+//           { lat: 35.765, lon: 139.880 }, // 葛飾区（小菅JCT）
+//           { lat: 35.723, lon: 139.912 }, // 四つ木IC
+//           { lat: 35.671, lon: 139.845 }, // 堀切JCT
+//           { lat: 35.623, lon: 139.776 }, // 品川
+//           { lat: 35.601, lon: 139.701 }, // 大井JCT
+//           { lat: 35.645, lon: 139.623 }, // 荻窪
+//           { lat: 35.671, lon: 139.601 }  // 高井戸
+//       ],
+//       direction: {
+//           "内回り": "時計回り",
+//           "外回り": "反時計回り"
+//       }
+//   }
+// };
+
+async function fetchHighwayData(lat, lon) {
+  const query = `[out:json];way["highway"="motorway"](around:500,${lat},${lon});out body;`;
+  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
+  try {
+      const response = await fetch(url);
+      const data = await response.json();
+      return data.elements; // 周辺の高速道路データ
+  } catch (error) {
+      console.error("Overpass APIエラー:", error);
+      return [];
   }
-};
+}

@@ -48,10 +48,16 @@ async function checkHighway(lat, lon) {
   let closestSegment = null;
 
   for (const highway of highways) {
-      // geometryがない場合はスキップ
+      // geometryがない、または短すぎる場合はスキップ
       if (!highway.geometry || highway.geometry.length < 2) {
           console.warn("geometryがないデータ:", highway);
           continue;
+      }
+
+      // tagsがない場合はデフォルト名
+      if (!highway.tags) {
+          console.warn("tagsがないデータ:", highway);
+          highway.tags = { name: "不明な高速道路" };
       }
 
       const geometry = highway.geometry;

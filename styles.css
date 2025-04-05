@@ -7,6 +7,11 @@ body {
 h1 {
   color: #333;
 }
+h2 {
+  color: #007bff;
+  font-size: 24px;
+  margin: 10px 0;
+}
 #location-info {
   background-color: white;
   padding: 15px;

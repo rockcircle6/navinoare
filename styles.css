@@ -27,7 +27,15 @@ button {
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  margin: 5px;
 }
 button:hover {
   background-color: #0056b3;
+}
+input[type="text"] {
+  padding: 8px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin: 5px;
 }

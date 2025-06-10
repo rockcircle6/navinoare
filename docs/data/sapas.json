@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "E1-EBINA",
+    "name": "海老名SA",
+    "road_id": "E1-T_down",
+    "kp": 13.2,
+    "lat": 35.4875,
+    "lon": 139.489,
+    "facilities": [
+      "GAS",
+      "EV",
+      "SHOP",
+      "RESTAURANT"
+    ],
+    "url": "https://www.driveplaza.com/sapa/2100"
+  },
+  {
+    "id": "E1-NAKAI",
+    "name": "中井PA",
+    "road_id": "E1-T_down",
+    "kp": 22.4,
+    "lat": 35.3795,
+    "lon": 139.2956,
+    "facilities": [
+      "SHOP"
+    ],
+    "url": "https://www.driveplaza.com/sapa/2101"
+  }
+]

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高速道路 SAPA ナビ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <button id="btnStart">現在位置を取得</button>
+
+    <section id="status">
+      <p>緯度経度: <span id="latlon">---</span></p>
+      <p>速度: <span id="speed">---</span> km/h<br>方位: <span id="bearing">---</span>°</p>
+      <p>路線: <span id="road">---</span> (<span id="dir">---</span>)</p>
+    </section>
+
+    <section id="next">
+      <h2>次に到達する SA/PA</h2>
+      <ol id="sapaList"></ol>
+    </section>
+
+    <script src="lib/turf.min.js"></script>\
+    <script src="lib/rbush.min.js"></script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

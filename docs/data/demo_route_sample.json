@@ -1,0 +1,37 @@
+[
+  {
+    "latitude": 35.50000,
+    "longitude": 139.50000,
+    "speed": 20,
+    "heading": 90,
+    "accuracy": 10
+  },
+  {
+    "latitude": 35.50000,
+    "longitude": 139.50200,
+    "speed": 25,
+    "heading": 90,
+    "accuracy": 10
+  },
+  {
+    "latitude": 35.50000,
+    "longitude": 139.50450,
+    "speed": 30,
+    "heading": 88,
+    "accuracy": 10
+  },
+  {
+    "latitude": 35.50000,
+    "longitude": 139.50700,
+    "speed": 25,
+    "heading": 92,
+    "accuracy": 10
+  },
+  {
+    "latitude": 35.50000,
+    "longitude": 139.50900,
+    "speed": 20,
+    "heading": 90,
+    "accuracy": 10
+  }
+]

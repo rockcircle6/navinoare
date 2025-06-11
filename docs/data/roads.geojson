@@ -1,0 +1,65 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            139.6206,
+            35.6095
+          ],
+          [
+            139.489,
+            35.4875
+          ],
+          [
+            139.3835,
+            35.4428
+          ]
+        ]
+      },
+      "properties": {
+        "id": "E1-T_up",
+        "name": "東名高速（上り）",
+        "dir": "up",
+        "measure": [
+          0,
+          13.2,
+          24.5
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            139.3835,
+            35.4428
+          ],
+          [
+            139.489,
+            35.4875
+          ],
+          [
+            139.6206,
+            35.6095
+          ]
+        ]
+      },
+      "properties": {
+        "id": "E1-T_down",
+        "name": "東名高速（下り）",
+        "dir": "down",
+        "measure": [
+          0,
+          11.3,
+          24.5
+        ]
+      }
+    }
+  ]
+}

@@ -2,19 +2,6 @@
 let highwayData = [];
 
 // OpenRouteService APIキー（ユーザーが入力）
-let apiKey = null;
-
-// APIキーを設定
-function setApiKey() {
-    const apiKeyInput = document.getElementById("apiKey").value;
-    if (apiKeyInput) {
-        apiKey = apiKeyInput;
-        console.log("APIキーが設定されました:", apiKey);
-        alert("APIキーが設定されました。位置情報を取得できます。");
-    } else {
-        alert("APIキーを入力してください。");
-    }
-}
 
 // JSONデータをGitHubから読み込む
 fetch('https://raw.githubusercontent.com/rockcircle6/navinoare/main/highways.json')
@@ -32,32 +19,6 @@ fetch('https://raw.githubusercontent.com/rockcircle6/navinoare/main/highways.jso
         console.error("highways.jsonの読み込みに失敗しました:", error);
         highwayData = [];
     });
-
-// OpenRouteService APIで道なりの距離を取得
-async function fetchRouteDistance(startLon, startLat, endLon, endLat) {
-    if (!apiKey) {
-        console.error("OpenRouteService APIキーが設定されていません");
-        return null;
-    }
-
-    const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${apiKey}&start=${startLon},${startLat}&end=${endLon},${endLat}`;
-    try {
-        console.log("OpenRouteServiceリクエスト送信:", url);
-        const response = await fetch(url);
-        console.log("OpenRouteServiceレスポンス受信:", response);
-        const data = await response.json();
-        console.log("OpenRouteServiceデータ:", data);
-        if (data.routes && data.routes.length > 0) {
-            return data.routes[0].distance / 1000; // 距離（メートル）をkmに変換
-        } else {
-            console.warn("ルートが見つかりませんでした");
-            return null;
-        }
-    } catch (error) {
-        console.error("OpenRouteServiceエラー:", error);
-        return null;
-    }
-}
 
 // Overpass APIで高速道路データを取得
 async function fetchHighwayData(lat, lon) {
@@ -126,8 +87,8 @@ function getSegmentHeading(start, end) {
     return (angle + 360) % 360; // 0〜360°に正規化
 }
 
-// キロポスト（KP）を計算（JSONデータとルート計算APIを使用）
-async function calculateKilopost(lat, lon, highwayName) {
+// キロポスト（KP）を計算（JSONデータと直線距離を使用）
+function calculateKilopost(lat, lon, highwayName) {
     const highway = highwayData.find(h => h["高速道路名"] === highwayName);
     if (!highway) {
         console.warn("高速道路データが見つかりません:", highwayName);
@@ -136,39 +97,45 @@ async function calculateKilopost(lat, lon, highwayName) {
 
     const startLat = highway["始点緯度"];
     const startLon = highway["始点経度"];
-    const endLat = highway["終点緯度"];
-    const endLon = highway["終点経度"];
+    const endLat = highway["終点緯度"]; // Used for totalDist calculation
+    const endLon = highway["終点経度"]; // Used for totalDist calculation
     const startKP = highway["始点キロポスト"];
     const endKP = highway["終点キロポスト"];
-    const totalLength = endKP - startKP; // 総距離（km）
+    const totalKPLength = endKP - startKP; // 総キロポスト距離（km）
 
-    // 始点から現在位置までの道なりの距離を取得
-    const distFromStart = await fetchRouteDistance(startLon, startLat, lon, lat);
-    if (distFromStart === null) {
-        console.warn("道なりの距離が取得できませんでした。直線距離でフォールバックします。");
-        const dist = getDistance(lat, lon, startLat, startLon) * 111000; // メートル単位
-        const distFromEnd = getDistance(lat, lon, endLat, endLon) * 111000;
-        const totalDist = getDistance(startLat, startLon, endLat, endLon) * 111000;
-        const ratio = totalDist > 0 ? dist / totalDist : 0;
-        const kp = startKP + (ratio * totalLength);
-        return Math.min(Math.max(kp, startKP), endKP);
+    // 緯度経度1度あたりの大まかな距離（km単位）。より正確な計算のためには地球の半径を考慮すべきだが、
+    // getDistanceは単純なユークリッド距離であり、この係数もそれに合わせる。
+    // ただし、getDistanceの結果は既に何らかの単位なので、この係数は不要かもしれない。
+    // getDistanceの実装を確認したところ、単純な差の二乗和の平方根なので、単位は入力に依存する。
+    // 緯度経度は度で与えられるため、メートルに変換していた既存ロジックを踏襲する。
+    const DEG_TO_METERS_FACTOR = 111000; // 1度あたり約111km
+
+    // 現在位置から高速道路の始点までの直線距離（メートル）
+    const distFromStartMeters = getDistance(lat, lon, startLat, startLon) * DEG_TO_METERS_FACTOR;
+
+    // 高速道路全体の直線距離（メートル）
+    const totalHighwayLengthMeters = getDistance(startLat, startLon, endLat, endLon) * DEG_TO_METERS_FACTOR;
+
+    let kp;
+    if (totalHighwayLengthMeters > 0) {
+        const ratio = distFromStartMeters / totalHighwayLengthMeters;
+        kp = startKP + (ratio * totalKPLength);
+    } else {
+        // 高速道路の始点と終点が同じ場合（または非常に近い場合）は、始点のKPとするか、エラーとする。
+        // ここでは始点のKPとする。
+        kp = startKP;
     }
 
-    // 終点から現在位置までの道なりの距離を取得
-    const distFromEnd = await fetchRouteDistance(lon, lat, endLon, endLat);
-    if (distFromEnd === null) {
-        console.warn("終点までの道なりの距離が取得できませんでした。直線距離でフォールバックします。");
-        const dist = getDistance(lat, lon, startLat, startLon) * 111000;
-        const distFromEnd = getDistance(lat, lon, endLat, endLon) * 111000;
-        const totalDist = getDistance(startLat, startLon, endLat, endLon) * 111000;
-        const ratio = totalDist > 0 ? dist / totalDist : 0;
-        const kp = startKP + (ratio * totalLength);
-        return Math.min(Math.max(kp, startKP), endKP);
+    // KPが高速道路の範囲内に収まるように調整
+    // 始点KP < 終点KP の場合と、始点KP > 終点KP の場合（例：環状線の一部など）を考慮
+    if (startKP < endKP) {
+        kp = Math.min(Math.max(kp, startKP), endKP);
+    } else {
+        kp = Math.min(Math.max(kp, endKP), startKP); // 逆順の場合
     }
 
-    // 始点から現在位置までの距離を基にキロポストを計算
-    const kp = startKP + distFromStart;
-    return Math.min(Math.max(kp, startKP), endKP); // 範囲内に収める
+    console.log(`簡易キロポスト計算: ${highwayName}, KP: ${kp.toFixed(2)}`);
+    return kp;
 }
 
 // 高速道路判定（JSONデータから名前を取得）
